@@ -1,0 +1,169 @@
+---
+title: "Quantified Self Analysis"
+author: "Alejandro Montoya"
+output: 
+  html_document:
+    keep_md: true
+---
+
+##Introduction
+
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as [Fitbit](http://www.fitbit.com/), [Nike Fuelband](http://www.nike.com/us/en_us/c/nikeplus-fuelband), or [Jawbone Up](https://jawbone.com/up). These type of devices are part of the "quantified self" movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+The variables included in this dataset are:
+
+* steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)
+* date: The date on which the measurement was taken in YYYY-MM-DD format
+* interval: Identifier for the 5-minute interval in which measurement was taken
+
+The dataset is stored in a comma-separated-value (CSV) file and there are a total of 17,568 observations in this dataset.
+
+##Preparation
+
+We'll load some libraries (like dplyr or ggplot2) that will be useful with the analysis of the data
+
+```{r setup, echo=TRUE}
+#Adds some needed libraries
+library(dplyr)
+library(ggplot2)
+```
+
+## Loading and Processing the data
+
+The first thing to do is to load the activity data from the CSV file provided into a data frame. We'll simply do this by invoking the **read.csv()** function with the stringsAsFactor parameter set to FALSE
+
+```{r dataLoad, echo=TRUE}
+#Loads the data into a data fram
+activityDF <- read.csv("activity.csv", stringsAsFactors = FALSE)
+```
+
+##What is mean total number of steps taken per day?
+
+In order to answer this question, we'll first create a new data frame that stores the number of steps taken by the person on a per day basis.
+
+```{r totalStepsByDay, echo=TRUE}
+#Creates a new data frame that has the calculation of the Total Steps per day
+stepsByDay <- summarise(group_by(activityDF, date), Total.Steps = sum(steps, na.rm = TRUE))
+head(stepsByDay)
+```
+
+Then, we create a histogram using the newly created dataframe
+
+```{r histStepsPerDay, echo = TRUE}
+#Creates an histogram for the Total Steps per day
+qplot(stepsByDay$Total.Steps, 
+      geom = "histogram", 
+      fill = I("sienna1"), 
+      col = I("black"), 
+      bins = 10, 
+      main = "Histogram for Total Steps per Day",
+      xlab = "Total Number of Steps", 
+      ylab = "Frequency")
+```
+
+Finally, we calculate the mean and the median of the Total Steps per day for all the reported days
+
+```{r meanMedianPerDay, echo = TRUE}
+#Calculates the mean and median of the Total Steps per day
+summary(stepsByDay$Total.Steps)
+```
+
+##What is the average daily activity pattern?
+
+First, let's calculate the average number of steps by interval for all days in the study
+```{r stepsByInterval, echo = TRUE}
+#Creates a new data frame that has the calculation of the Average Steps per Interval
+stepsByInterval <- summarise(group_by(activityDF, interval), Mean.Steps = mean(steps, na.rm = TRUE))
+head(stepsByInterval)
+```
+
+Now, let's plot this data
+```{r plotStepsByInterval, echo = TRUE}
+#Creates a plot with the data of Avg Steps by Interval
+ggplot(stepsByInterval, aes(interval, Mean.Steps, col = I("sienna1"))) + 
+  ggtitle("Avg. Steps by Interval") + 
+  xlab ("Interval") + 
+  ylab("Avg. Number of Steps") + 
+  geom_line()
+```
+
+Finally, let's check which interval has the biggest Avg. of steps for all days
+```{r maxInterval, echo = TRUE}
+#Gets the interval with the biggest Avg
+stepsByInterval[which.max(stepsByInterval$Mean.Steps),]
+```
+
+##Imputing missing values
+
+Let's find out how many records we have with missing values in the "steps" column
+
+```{r NAValues, echo = TRUE}
+sum(is.na(activityDF$steps))
+```
+
+We are going to imput missing values to try to identify if the presence of them affects the results that we have obtained. We are going to replace the missing values for the average of steps in the same interval for all days and store it in a new dataframe
+
+```{r replaceNAValues, echo = TRUE}
+#Creates a new dataframe as a copy of the original dataframe
+noNAActivityDF <- activityDF
+
+#Replaces the NA values in the step column for the average steps value for the same interval
+noNAActivityDF$steps <- ifelse(is.na(noNAActivityDF$steps) == TRUE, stepsByInterval$Mean.Steps[stepsByInterval$interval %in% noNAActivityDF$interval], noNAActivityDF$steps)
+
+#Confirms that there are no more NA values
+sum(is.na(noNAActivityDF$steps))
+```
+
+Finally, let's see if there's a difference in the histogram and the mean and median values when compared against the original dataframe (i.e. the one with the NA values)
+
+```{r compareMetrics, echo = TRUE}
+#Creates a new dataframe with the new values of Total Steps per Day
+noNAstepsByDay <- summarise(group_by(noNAActivityDF, date), Total.Steps = sum(steps, na.rm = TRUE))
+
+#Creates an histogram for the Total Steps per day
+qplot(noNAstepsByDay$Total.Steps, 
+      geom = "histogram", 
+      fill = I("sienna1"), 
+      col = I("black"), 
+      bins = 10, 
+      main = "Histogram for Total Steps per Day (replaced NA Values)",
+      xlab = "Total Number of Steps", 
+      ylab = "Frequency")
+
+#Calculates the mean and median of the Total Steps per day
+summary(noNAstepsByDay$Total.Steps)
+```
+
+As we can see, there's a difference between the mean and median of both data sets.
+
+##Are there differences in activity patterns between weekdays and weekends?
+
+First, let's create a new factor column to the dataframe without the NA values that's going to indicate if the date is a Weekday or a Weekend
+
+```{r weekdaysVSWeekends, echo = TRUE}
+#Adds a new column to indicate if the date is weekday or weekend
+noNAActivityDF$Day.Type <- ifelse(weekdays(as.Date(noNAActivityDF$date)) == 'Saturday' | weekdays(as.Date(noNAActivityDF$date)) == 'Sunday', "Weekend", "Weekday")
+head(noNAActivityDF)
+```
+
+Now, let's create a new dataframe with the avg steps by interval and day type (i.e. weekday / weekend)
+
+```{r avgStepsByIntervalDayType, echo = TRUE}
+#Creates a new dataframe with the avg steps by interval and day type
+noNAStepsByInterval <- summarise(group_by(noNAActivityDF, interval, Day.Type), Mean.Steps = mean(steps))
+head(noNAStepsByInterval)
+```
+
+Finally, let's plot these averages comparing them between day types
+
+```{r plotAvgStepsByIntervalDayType, echo = TRUE}
+#Creates a plot with 2 panels to compare the avg steps by interval by day type
+ggplot(noNAStepsByInterval, aes(interval, Mean.Steps, col = I("sienna1"))) + 
+  ggtitle("Avg. Steps by Interval by Day Type") + 
+  xlab ("Interval") + 
+  ylab("Avg. Number of Steps") + 
+  geom_line() + 
+  facet_wrap(~ Day.Type, nrow = 2)
+```

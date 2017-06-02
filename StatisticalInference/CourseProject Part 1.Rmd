@@ -1,0 +1,186 @@
+---
+title: "Statistical Inference Course Project: Distribution Simulation and Basic Inferential Data Analysis - Part 1"
+author: "Alejandro Montoya"
+date: "May 8, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(datasets)
+library(ggplot2)
+library(knitr)
+library(dplyr)
+set.seed(43)
+```
+#Part 1: Simulation Exercise
+
+##Simulation
+
+We need to simulate the event of generating multiple exponential distributions (in this case they have to be 1,000) with 40 exponentials each, in order to be able to compare population estimated statistics (mean and variance) from samples, vs. the theoretical values
+
+Let's start by creating the simulation and storing it into a matrix: \hfill\break
+
+```{r exponentialSimulation}
+#Defines the number of simulations
+l_nsim <- 1000
+
+#Defines the number of exponentials to generated
+l_n <- 40
+
+#Defines the rate for the exponential simulation
+l_lambda <- 0.2
+
+#Generates a matrix with the simulated data
+#The matrix has 1,000 rows (simulations) and 40 columns (exponentials)
+v_expSim <- matrix(rexp(l_n * l_nsim, l_lambda), l_nsim, l_n)
+```
+
+##Sample Mean versus Theoretical Mean:  
+
+####Show the sample Mean and compare it to the theoretical mean of the distribution.
+
+We have to calculate the mean of the exponentials for each one of the 1,000 simulations, and then we can estimate the mean of the distribution by calculating the mean of the simulations' means: \hfill\break
+
+```{r meanComparison}
+#Generates a vector with the mean of exponentials for every simulation 
+v_expSimMeans <- apply(v_expSim, 1, mean)
+
+#Calculates the mean of the simulated exponential means
+l_expSimMean <- round(mean(v_expSimMeans), 3)
+
+#Calculates the theoretical mean of the distribution
+l_mu = 1 / l_lambda
+
+#Compares the difference between both estimators
+l_meansDifference <- round(l_mu - l_expSimMean, 3)
+
+#Creates a new data frame that will store the results for further use
+m_results <- data.frame(c("Mean"), 
+                        c(l_expSimMean), 
+                        c(l_mu), 
+                        c(l_meansDifference), 
+                        stringsAsFactors = FALSE)
+colnames(m_results) <- c("Statistic", 
+                         "Simulation.Value", 
+                         "Theoretical.Value", 
+                         "Difference")
+
+#Prints a knitr table with the results
+kable(m_results[1,], caption = "Mean Comparison", booktabs = TRUE)
+```
+
+
+The difference between the simulated (`r l_expSimMean`) and the theoretical (1 / 0.2 = 5) means of the exponential distribution with lambda = 0.2 is `r l_meansDifference`... Since they are that close, we can safely say that the simulation of multiple exponential distributions can accurately estimate the population.
+
+##Sample Variance versus Theoretical Variance:  
+
+####Show how variable the sample is (via variance) and compare it to the theoretical variance of the distribution.
+
+Since we already have the vector with the means of the 1,000 simulations, we can now use the R function var to find the variance between them and then compare it with the theoretical one, which is given by the formulae Var(X) = s^2 / n, with s = 1 / lambda: \hfill\break
+
+```{r varianceComparison}
+#Calculates the variance in the simulated means
+l_expSimVariance <- var(v_expSimMeans)
+
+#Calculates the theoretical variance: Var(X) = s^2 / n, with s = 1 / lambda
+l_expTheoreticalVariance <- ((1/l_lambda)^2) / l_n
+
+#Calculates the difference between the both variances
+l_varianceDifference <- abs(l_expTheoreticalVariance - l_expSimVariance)
+
+#Adds the results to the results data frame
+m_results <- rbind(m_results, c("Variance", 
+                                round(l_expSimVariance,3), 
+                                round(l_expTheoreticalVariance,3), 
+                                round(l_varianceDifference,3)))
+
+#Prints a knitr table with the results
+kable(m_results[2,], caption = "Variance Comparison", row.names = FALSE)
+```
+
+
+##Distribution
+
+####Show that the distribution is approximately normal.
+
+Now, let's plot a histogram of the simulation with a line on the theoretical mean: \hfill\break
+
+```{r histogramPlot,fig.align='center', warning=FALSE}
+g = ggplot(data.frame(v_expSimMeans = v_expSimMeans), aes(x = v_expSimMeans))
+g = g + geom_histogram(aes(y=..density..), 
+                       color = "black", 
+                       fill = "lightblue", 
+                       binwidth = 0.1)
+g = g + geom_density(alpha = 0.2, fill = "red")
+g = g + xlab("Simulated Mean") + ylab("Frequency")
+g = g + ggtitle("Exponential Distribution Simulation")
+g
+```
+
+As we can see with this histogram and the density plot, the simulation distribution is aproximately normal with the following statistics: \hfill\break
+
+``` {r statisticsCalculation, echo=FALSE}
+#Adds a new line with the Standard Deviation to the results data frame
+m_results <- rbind(m_results, c("Standard Deviation", 
+                                round(sqrt(l_expSimVariance),3), 
+                                round(sqrt(l_expTheoreticalVariance),3), 
+                                NA))
+
+#Adds a new line with the 95th Quantile to the results data frame
+m_results <- rbind(m_results, c("95th Quantile", 
+                                round(qnorm(0.95, mean = l_expSimMean, 
+                                            sd = sqrt(l_expSimVariance)),3), 
+                                round(qnorm(0.95, mean = 5, sd = sqrt(0.625)),3), 
+                                NA))
+
+#Adds a new line with the 95th Quantile expressed as distance from the mean in 
+#standard deviations to the results data frame
+m_results <- rbind(m_results, c("95th Quantile in Std Devs", 
+                                round((qnorm(0.95, mean = l_expSimMean, 
+                                             sd = sqrt(l_expSimVariance)
+                                             ) - l_expSimMean) 
+                                      / sqrt(l_expSimVariance), 3), 
+                                round(qnorm(0.95),3), 
+                                NA))
+
+#Adds a new line with the 97.5th Quantile to the results data frame
+m_results <- rbind(m_results, c("97.5th Quantile", 
+                                round(qnorm(0.975, mean = l_expSimMean, 
+                                            sd = sqrt(l_expSimVariance)),3), 
+                                round(qnorm(0.975, mean = 5, sd = sqrt(0.625)),3), 
+                                NA))
+
+#Adds a new line with the 97.5th Quantile expressed as distance from the mean in 
+#standard deviations to the results data frame
+m_results <- rbind(m_results, c("97.5th Quantile in Std Devs", 
+                                round((qnorm(0.975, mean = l_expSimMean, 
+                                             sd = sqrt(l_expSimVariance)
+                                             ) - l_expSimMean) 
+                                      / sqrt(l_expSimVariance), 3), 
+                                round(qnorm(0.975),3), 
+                                NA))
+
+#Adds a new line with the 25th Quantile to the results data frame
+m_results <- rbind(m_results, c("25th Quantile", 
+                                round(qnorm(0.25, mean = l_expSimMean, 
+                                            sd = sqrt(l_expSimVariance)),3), 
+                                round(qnorm(0.25, mean = 5, sd = sqrt(0.625)),3), 
+                                NA))
+
+#Adds a new line with the 25th Quantile expressed as distance from the mean in 
+#standard deviations to the results data frame
+m_results <- rbind(m_results, c("25th Quantile in Std Devs", 
+                                round((qnorm(0.25, mean = l_expSimMean, 
+                                             sd = sqrt(l_expSimVariance)
+                                             ) - l_expSimMean) 
+                                      / sqrt(l_expSimVariance), 3), 
+                                round(qnorm(0.25),3), 
+                                NA))
+
+kable(m_results[,1:3], caption = "Distribution Statistics")
+```
+
+##Appendix
+
+The R Code used to generate all these results is located at [Exponential Distribution Simulation](https://github.com/alemontoya/Statistical-Inference/blob/master/ExponentialDistributionSimulation.R)

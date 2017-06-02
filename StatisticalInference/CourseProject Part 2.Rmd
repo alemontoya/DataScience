@@ -1,0 +1,173 @@
+---
+title: "Statistical Inference Course Project: Distribution Simulation and Basic Inferential Data Analysis - Part 2"
+author: "Alejandro Montoya"
+date: "May 8, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(datasets)
+library(ggplot2)
+library(knitr)
+library(dplyr)
+set.seed(43)
+```
+
+#Part 2: Basic Inferential Data Analysis
+
+Now in the second portion of the project, we're going to analyze the ToothGrowth data in the R datasets package.
+
+##Loading the data
+
+``` {r toothGrowthDataLoad, include=FALSE}
+#Loads the data into a data frame
+data(ToothGrowth)
+
+#Gives a first glance at the data
+str(ToothGrowth)
+
+```
+
+The data frame has 60 observations with 3 variables: 
+
+* len: Shows the total length  of "odontoblasts" (cells responsible for tooth growth)
+* supp: Vitamin C supplement used in the subject (OJ: Orange Juice, VC: Ascorbic Acid)
+* dose: Amount of vitamins given to the subject (0.5, 1 and 2 mg/day)
+
+##Visual Exploration and Analysis
+
+Now, let's explore the data to give us an idea of what we are dealing with. Let's use a chart where we can easily see the distribution of each sample, by looking at the histogram, density plot and mean of each one of the different groups that were sampled, i.e., we'll group by Supplement and Dose against the Length  \hfill\break
+
+``` {r toothGrowthDataPlot, fig.height = 3.75, fig.width = 6, fig.align='center'}
+#Creates a histogram with a density plot and a line with the mean for every
+#group
+g <- ggplot(ToothGrowth, aes(x = len))
+g <- g + geom_histogram(aes(y=..density..), 
+                        fill = "sienna2", 
+                        color = "black", 
+                        bins = 5)
+g <- g + geom_density(alpha = 0.5, fill = "skyblue3")
+g <- g + geom_vline(data=aggregate(ToothGrowth[1], ToothGrowth[c(2,3)], mean), 
+                    mapping=aes(xintercept=len), 
+                    color="red", 
+                    linetype = "dashed") 
+g <- g + facet_grid(supp~dose)
+g <- g + xlab("Length") + ylab("Density") 
+g <- g + ggtitle("Histogram, Densitiy and Mean by Supplement and Dose")
+g
+```
+
+This chart clearly shows us the distribution of each test group, and how the mean of the length varies from one group to another.  
+
+##Numeric Exploration and Analysis
+
+Now, let's try to do the same but looking at the numbers: \hfill\break
+
+``` {r numericExploration}
+#Creates a data frame with the summary of the statistics by Supplement and Dose
+df_StatsSumm <- data.frame(summarise(group_by(ToothGrowth, supp, dose), 
+                                     Length.Mean = mean(len), 
+                                     Length.Max = max(len), 
+                                     Length.Min = min(len), 
+                                     Length.Variance = var(len), 
+                                     Length.StdDev = sd(len), 
+                                     Length.Observations = n()))
+
+#Creates a knitr table to show the results
+kable(df_StatsSumm, 
+      caption = "Summary by Supplement and Dose", 
+      col.names = c("Supplement", "Dose", "Mean Length", "Max Length", 
+                    "Min Length", "Variance", "Std Dev", "Observations"),
+      digits = 3
+      )
+```
+
+##Confidence Intervals / Hypothesis Testing: Comparison of tooth growth by supp and dose
+
+Now, let's compare the different tests to identify if there's any difference in the growth of the teeth when using different supplements in different dosage. These will be our hypothesis:
+
+* H~0~: There's NO difference in tooth growth when using different Supplements (i.e. Orange Juice or Ascorbic Acid)
+* H~1~: There's a difference in tooth growth when using different Supplements (i.e. Orange Juice or Ascorbic Acid)
+
+We also have to take into account the fact that the dosage is different, so we will run the hypothesis analysis with every different dose: \hfill\break
+
+``` {r htDose1}
+#Creates a data frame with the supp and len values when the dose is 0.5, 1 and 2 
+#respectively
+df_Dose_0.5 <- subset(ToothGrowth, dose == 0.5)
+df_Dose_1 <- subset(ToothGrowth, dose == 1)
+df_Dose_2 <- subset(ToothGrowth, dose == 2)
+
+#Run the t.test on the data frames
+t.test.results_0.5 <- t.test(len ~ supp, data=df_Dose_0.5)
+t.test.results_1 <- t.test(len ~ supp, data=df_Dose_1)
+t.test.results_2 <- t.test(len ~ supp, data=df_Dose_2)
+
+#Creates a data frame to store the results
+#Adds the results of the test with dose = 0.5
+df_testResults <- data.frame(c("0.5 mg/day"), 
+                             c(round(t.test.results_0.5$p.value,4)), 
+                             c(paste(round(t.test.results_0.5$conf.int[1],2), 
+                                     round(t.test.results_0.5$conf.int[2],2), 
+                                     sep = ", ")),
+                             c(ifelse(between(0, 
+                                              t.test.results_0.5$conf.int[1], 
+                                              t.test.results_0.5$conf.int[2]), 
+                                      "Failed to reject null hypothesis", 
+                                      "Reject null hypothesis" )),
+                             stringsAsFactors = FALSE)
+
+#Adds the results of the test with dose = 1
+df_testResults <- rbind(df_testResults, c("1 mg/day", 
+                                          round(t.test.results_1$p.value,4), 
+                                          paste(round(t.test.results_1$conf.int[1],2), 
+                                                round(t.test.results_1$conf.int[2],2), 
+                                                sep = ", "),
+                                          ifelse(between(0, 
+                                                         t.test.results_1$conf.int[1], 
+                                                         t.test.results_1$conf.int[2]), 
+                                                 "Failed to reject null hypothesis", 
+                                                 "Reject null hypothesis" )
+                                          )
+                       )
+
+#Adds the results of the test with dose = 2
+df_testResults <- rbind(df_testResults, c("2 mg/day", 
+                                          round(t.test.results_2$p.value,4), 
+                                          paste(round(t.test.results_2$conf.int[1],2), 
+                                                round(t.test.results_2$conf.int[2],2), 
+                                                sep = ", "),
+                                          ifelse(between(0, 
+                                                         t.test.results_2$conf.int[1], 
+                                                         t.test.results_2$conf.int[2]), 
+                                                 "Failed to reject null hypothesis", 
+                                                 "Reject null hypothesis" )
+                                          )
+                       )
+
+#Creates a knitr table with the results
+kable(df_testResults, 
+      col.names = c("Dose", "P Value", "Conf. Interval", "Decision"),
+      caption = "Hypothesis Testing: Confidence Intervals by Dose",
+      digits = 4)
+```
+
+##Conclusions
+
+By the analysis seen above, we can conclude that:
+
+* When applied a dose of 0.5 mg/day of vitamin C, depending on which Supplement was used, the tooth growth varies, given bigger growth when using Orange Juice (OJ) than when using Ascorbic Acid (VC)
+* When applied a dose of 1 mg/day of vitamin C, depending on which Supplement was used, the tooth growth varies, given bigger growth when using Orange Juice (OJ) than when using Ascorbic Acid (VC)
+* When applied a dose of 2 mg/day of vitamin C, we CAN NOT say that there's no difference in tooth growth, independently of which Supplement was used
+
+##Assumptions
+
+In order for these conclusions to be valid we have to assume that:
+
+* The Guinea pigs are representative of the population and were randomly selected
+* The dosage and supplement were assigned randomly to the Guinea pigs
+
+##Appendix
+
+The R Code used to generate all these results is located at [Tooth Growth Analysis](https://github.com/alemontoya/Statistical-Inference/blob/master/ToothGrowthAnalysis.R)
